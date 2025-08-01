@@ -16,9 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.exc import IntegrityError
 
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
 engine = create_async_engine(url=os.getenv("SQLALCHEMY_URL"))
 AsyncSessionLocal = sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
@@ -299,6 +303,7 @@ async def fill_initial_data(async_session_maker: sessionmaker):
                 Status(status_name="предзаказ принят"),
             ]
             session.add_all(statuses)
+            logger.info('В таблицу "statuses" добавлены начальные значения')
 
         count_roles = await session.scalar(select(func.count()).select_from(Role))
         if count_roles == 0:
@@ -311,6 +316,7 @@ async def fill_initial_data(async_session_maker: sessionmaker):
                 Role(role_name="заблокирован"),
             ]
             session.add_all(roles)
+            logger.info('В таблицу "roles" добавлены начальные значения')
 
         count_rates = await session.scalar(select(func.count()).select_from(Rate))
         if count_rates == 0:
@@ -322,17 +328,21 @@ async def fill_initial_data(async_session_maker: sessionmaker):
                 Rate(rate_name="предзаказ/покататься"),
             ]
             session.add_all(rates)
+            logger.info('В таблицу "rates" добавлены начальные значения')
 
         count_keys = await session.scalar(select(func.count()).select_from(Secret_Key))
         if count_keys == 0:
             keys = [Secret_Key(secret_key="Key")]
             session.add_all(keys)
+            logger.info('В таблицу "keys" добавлены начальные значения')
 
         try:
             await session.commit()
         except IntegrityError as e:
             await session.rollback()
-            print(f"Ошибка при добавлении начальных данных: {e}")
+            logger.error(
+                f"Ошибка добавления начальных данные в бд: {e} <fill_initial_data>"
+            )
 
 
 async def async_main():
