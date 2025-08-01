@@ -7,10 +7,13 @@ from sqlalchemy import (
     Numeric,
     Boolean,
     Identity,
+    select,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.exc import IntegrityError
 
 import os
 from dotenv import load_dotenv
@@ -275,6 +278,64 @@ class Privacy_Policy_Signature(Base):
     signed_at: Mapped[str] = mapped_column(Text)
 
 
+async def fill_initial_data(async_session_maker: sessionmaker):
+    async with async_session_maker() as session:
+        count_statuses = await session.scalar(select(func.count()).select_from(Status))
+        if count_statuses == 0:
+            statuses = [
+                Status(status_name="на линии"),
+                Status(status_name="не на линии"),
+                Status(status_name="принят"),
+                Status(status_name="формируется"),
+                Status(status_name="водитель в пути"),
+                Status(status_name="в пути"),
+                Status(status_name="завершен"),
+                Status(status_name="отменен"),
+                Status(status_name="водитель заблокирован"),
+                Status(status_name="на рассмотрении у клиента"),
+                Status(status_name="оплата"),
+                Status(status_name="на месте"),
+                Status(status_name="на рассмотрении у водителя"),
+                Status(status_name="предзаказ принят"),
+            ]
+            session.add_all(statuses)
+
+        count_roles = await session.scalar(select(func.count()).select_from(Role))
+        if count_roles == 0:
+            roles = [
+                Role(role_name="клиент"),
+                Role(role_name="водитель"),
+                Role(role_name="водитель/админ"),
+                Role(role_name="оператор/админ"),
+                Role(role_name="главный админ"),
+                Role(role_name="заблокирован"),
+            ]
+            session.add_all(roles)
+
+        count_rates = await session.scalar(select(func.count()).select_from(Rate))
+        if count_rates == 0:
+            rates = [
+                Rate(rate_name="обычный заказ"),
+                Rate(rate_name="покататься"),
+                Rate(rate_name="транзит"),
+                Rate(rate_name="предзаказ/обычный заказ"),
+                Rate(rate_name="предзаказ/покататься"),
+            ]
+            session.add_all(rates)
+
+        count_keys = await session.scalar(select(func.count()).select_from(Secret_Key))
+        if count_keys == 0:
+            keys = [Secret_Key(secret_key="Key")]
+            session.add_all(keys)
+
+        try:
+            await session.commit()
+        except IntegrityError as e:
+            await session.rollback()
+            print(f"Ошибка при добавлении начальных данных: {e}")
+
+
 async def async_main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await fill_initial_data(AsyncSessionLocal)
