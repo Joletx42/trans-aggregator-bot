@@ -29,6 +29,7 @@ from app.database.models import (
     Used_Promo_Code,
     Admin,
     Used_Referral_Link,
+    Privacy_Policy_Signature,
 )
 
 from aiogram import Bot
@@ -353,6 +354,29 @@ async def set_message(user_id: int, message_id: int, text: str) -> None:
         except Exception as e:
             await session.rollback()  # Откат транзакции в случае ошибки
             logger.error(f"Ошибка для user_id {user_id}: {e} <set_message>")
+
+async def set_privacy_policy_sign(tg_id: int) -> None:
+    """
+    Асинхронно создает запись о подписи политики конфиденциальности и обработке ПД.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            user = await session.scalar(select(User).where(User.tg_id == tg_id))
+
+            current_time = datetime.now(pytz.timezone("Etc/GMT-7"))
+            formatted_time = current_time.strftime("%d-%m-%Y %H:%M")
+
+            sign = Privacy_Policy_Signature(user_id=user.id, signed_at=formatted_time, document_version=os.getenv("PRIVACY_POLICY_DOC_VERSION"), document_hash=os.getenv("PRIVACY_POLICY_DOC_HASH"))
+
+            session.add(sign)
+            await session.commit()
+
+            logger.info(
+                f"Подписанное согласие пользователем {tg_id} успешно добавлено в базу данных. <set_privacy_policy_sign>"
+            )
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Ошибка для user_id {tg_id}: {e} <set_privacy_policy_sign>")
 
 
 async def get_all_chats(session, roles_list: list):
@@ -2753,7 +2777,34 @@ async def check_used_referral_link(tg_id: int) -> bool:
                 f"Ошибка при выполнении запроса для пользователя {tg_id}: {e} <check_used_referral_link>"
             )
             return False
+        
+async def check_sign_privacy_policy(tg_id: int) -> bool:
+    """
+    Проверяет наличие пользователя в таблице подписей соглашений.
 
+    Returns:
+        True, если запись о пользователе в таблице существует, False в противном случае.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(
+                select(Privacy_Policy_Signature.id)
+                .join(User)
+                .filter(User.tg_id == tg_id)
+            )
+            user_in_table = result.scalar_one_or_none()
+
+            if user_in_table is None:
+                logger.info(
+                    f"Пользователь {tg_id} не найден в таблице подписи соглашений <check_sign_privacy_policy>"
+                )
+
+            return user_in_table is not None
+        except Exception as e:
+            logger.error(
+                f"Ошибка при выполнении запроса для пользователя {tg_id}: {e} <check_sign_privacy_policy>"
+            )
+            return False
 
 async def delete_order(order_id: int) -> None:
     """

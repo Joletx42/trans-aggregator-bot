@@ -954,8 +954,15 @@ cancel_button = ReplyKeyboardMarkup(
     one_time_keyboard=True,
 )
 
-web_app_button = InlineKeyboardMarkup(
+sign_contract_button = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="📄 Политика конфиденциальности", web_app=WebAppInfo(url=os.getenv("PRIVACY_POLICY_URL")))]
+        [InlineKeyboardButton(text="✅Подписать", callback_data="accept_policy")],
+        [InlineKeyboardButton(text="🚫Отказаться", callback_data="reject_policy")]
     ]
 )
+
+# web_app_button = InlineKeyboardMarkup(
+#     inline_keyboard=[
+#         [InlineKeyboardButton(text="📄 Политика конфиденциальности", web_app=WebAppInfo(url=os.getenv("PRIVACY_POLICY_URL")))]
+#     ]
+# )

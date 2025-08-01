@@ -289,7 +289,7 @@ async def show_current_order(callback: CallbackQuery, state: FSMContext):
                 text=text,
                 reply_markup=current_button,
             )
-            await rq.set_message(user_id, msg.message_id, msg.text)
+            await rq.set_message(user_id, msg.message_id, "текущий заказ")
     except Exception as e:
         logger.error(
             f"Ошибка в функции show_current_order для пользователя {user_id}: {e}"
@@ -935,9 +935,7 @@ async def order_description(callback: CallbackQuery, state: FSMContext):
 
         encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
         if not encryption_key:
-            logger.error(
-                "Отсутствует ключ шифрования данных. <order_description>"
-            )
+            logger.error("Отсутствует ключ шифрования данных. <order_description>")
             return
 
         decrypted_start_coords = sup.decrypt_data(order.start_coords, encryption_key)
@@ -1245,7 +1243,7 @@ async def driver_location_confirm_start_order(
             f"Не удалось получить информацию о водителе из текущего заказа {order_id} для пользователя {user_id} <handler_driver_location>"
         )
         return
-    
+
     encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
     if not encryption_key:
         logger.error(
@@ -1284,7 +1282,11 @@ async def driver_location_confirm_start_order(
         scheduled_time = await sup.calculate_new_time_by_current_time(total_time)
 
         await rq.set_some_data_for_current_order(
-            order_id, encrypted_driver_location, encrypted_start_coords, scheduled_time, total_time
+            order_id,
+            encrypted_driver_location,
+            encrypted_start_coords,
+            scheduled_time,
+            total_time,
         )
 
         formatted_time = scheduled_time.split()[1]
@@ -1437,7 +1439,7 @@ async def client_accept(callback: CallbackQuery, state: FSMContext):
                     f"Не удалось получить информацию о заказе для тарифа {rate_id} и заказа {order_id} <client_accept>"
                 )
                 return
-            
+
             scheduler_manager.add_job(
                 sup.scheduled_switch_order_status_and_block_driver,
                 "date",
@@ -1487,7 +1489,7 @@ async def client_accept(callback: CallbackQuery, state: FSMContext):
             time_diff = await sup.calculate_time_diff(order.submission_time)
             time_diff_minutes = time_diff.total_seconds() / 60
             time_diff_hours = int(time_diff.total_seconds() / 3600)
-            remind_time = "";
+            remind_time = ""
 
             if time_diff_hours > 24:
                 remind_time = "8 часов"
@@ -1518,7 +1520,7 @@ async def client_accept(callback: CallbackQuery, state: FSMContext):
             await rq.set_message(driver_tg_id, msg.message_id, msg.text)
 
             msg = await callback.message.answer(
-                text=f"✅Предзаказ принят!\nМы напомним вам о вашей запланированной поездке заранее. Чтобы посмотреть фотографии машины и водителя перейдите к заказу в пункте \"Текущие заказы\".\n\nДетали заказа:\n\n#############\n{order_info_for_client}\n#############\n\nСпасибо за выбор нашей службы!\nЕсли есть вопросы по заказу, обратитесь в службу поддержки",
+                text=f'✅Предзаказ принят!\nМы напомним вам о вашей запланированной поездке заранее. Чтобы посмотреть фотографии машины и водителя перейдите к заказу в пункте "Текущие заказы".\n\nДетали заказа:\n\n#############\n{order_info_for_client}\n#############\n\nСпасибо за выбор нашей службы!\nЕсли есть вопросы по заказу, обратитесь в службу поддержки',
             )
             await rq.set_message(user_id, msg.message_id, msg.text)
 
@@ -1544,11 +1546,13 @@ async def client_accept(callback: CallbackQuery, state: FSMContext):
                 )
                 return
 
-            photo_response = await sup.send_driver_photos(callback.message, client_tg_id, driver_info)
+            photo_response = await sup.send_driver_photos(
+                callback.message, client_tg_id, driver_info
+            )
             if photo_response:
                 await sup.send_message(callback.message, user_id, photo_response)
                 return
-            
+
             order_info_for_client = await sup.get_order_info_for_client_with_driver(
                 rate_id,
                 order.submission_time,
@@ -1568,7 +1572,9 @@ async def client_accept(callback: CallbackQuery, state: FSMContext):
                 return
 
             msg = await callback.message.answer(
-                text=um.client_accept_text_for_client(formatted_time, order_info_for_client),
+                text=um.client_accept_text_for_client(
+                    formatted_time, order_info_for_client
+                ),
                 reply_markup=kb.keyboard_remove,
             )
             await rq.set_message(user_id, msg.message_id, msg.text)
@@ -1798,14 +1804,14 @@ async def handler_in_place(callback: CallbackQuery, state: FSMContext):
                 f"Не удалось получить информацию о заказе для тарифа {rate_id} и заказа {order_id} <handler_in_place>"
             )
             return
-        
+
         order = await rq.get_order_by_id(order_id)
         if order is None:
             logger.error(
                 f"Не удалось получить информацию о заказе по ID {order_id} для пользователя {user_id} <handler_in_place>"
             )
             return
-        
+
         order_info_for_client = await sup.get_order_info_for_client_with_driver(
             rate_id,
             order.submission_time,
@@ -1848,7 +1854,9 @@ async def handler_in_place(callback: CallbackQuery, state: FSMContext):
             )
             return
 
-        photo_response = await sup.send_driver_photos(callback.message, client_tg_id, driver_info)
+        photo_response = await sup.send_driver_photos(
+            callback.message, client_tg_id, driver_info
+        )
         if photo_response:
             await sup.send_message(callback.message, user_id, photo_response)
             return
@@ -1971,22 +1979,23 @@ async def handler_start_trip(callback: CallbackQuery, state: FSMContext):
 
         encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
         if not encryption_key:
-            logger.error(
-                "Отсутствует ключ шифрования данных. <handler_start_trip>"
-            )
+            logger.error("Отсутствует ключ шифрования данных. <handler_start_trip>")
             return
 
         if rate_id in [1, 4]:
-            decrypted_finish_coords = sup.decrypt_data(order.finish_coords, encryption_key)
+            decrypted_finish_coords = sup.decrypt_data(
+                order.finish_coords, encryption_key
+            )
         elif rate_id in [2, 5]:
             decrypted_finish_coords = order.finish_coords
-
 
         msg = await callback.message.answer(
             text=um.start_info_text_for_driver(
                 rate_id, formatted_time, order_info, order.price
             ),
-            reply_markup=await kb.create_in_trip_keyboard(rate_id, decrypted_finish_coords),
+            reply_markup=await kb.create_in_trip_keyboard(
+                rate_id, decrypted_finish_coords
+            ),
         )
         await rq.set_message(user_id, msg.message_id, msg.text)
 
@@ -1997,7 +2006,9 @@ async def handler_start_trip(callback: CallbackQuery, state: FSMContext):
             )
             return
 
-        photo_response = await sup.send_driver_photos(callback.message, client_tg_id, driver_info)
+        photo_response = await sup.send_driver_photos(
+            callback.message, client_tg_id, driver_info
+        )
         if photo_response:
             await sup.send_message(callback.message, user_id, photo_response)
             return
@@ -2243,7 +2254,9 @@ async def handler_go_to_new_trip(callback: CallbackQuery, state: FSMContext):
             )
 
         tz = pytz.timezone("Etc/GMT-7")
-        run_date = tz.localize(datetime.strptime(scheduled_time, "%d-%m-%Y %H:%M")) - timedelta(minutes=30)
+        run_date = tz.localize(
+            datetime.strptime(scheduled_time, "%d-%m-%Y %H:%M")
+        ) - timedelta(minutes=30)
 
         scheduler_manager.add_job(
             sup.scheduled_reminder_finish_trip,
@@ -2259,7 +2272,9 @@ async def handler_go_to_new_trip(callback: CallbackQuery, state: FSMContext):
         )
 
         tz = pytz.timezone("Etc/GMT-7")
-        run_date = tz.localize(datetime.strptime(scheduled_time, "%d-%m-%Y %H:%M")) - timedelta(minutes=10)
+        run_date = tz.localize(
+            datetime.strptime(scheduled_time, "%d-%m-%Y %H:%M")
+        ) - timedelta(minutes=10)
 
         scheduler_manager.add_job(
             sup.scheduled_reminder_finish_trip,
@@ -2283,7 +2298,9 @@ async def handler_go_to_new_trip(callback: CallbackQuery, state: FSMContext):
             )
             return
 
-        photo_response = await sup.send_driver_photos(callback.message, user_id, driver_info)
+        photo_response = await sup.send_driver_photos(
+            callback.message, user_id, driver_info
+        )
         if photo_response:
             await sup.send_message(callback.message, user_id, photo_response)
             return
@@ -2304,9 +2321,7 @@ async def handler_go_to_new_trip(callback: CallbackQuery, state: FSMContext):
 
         encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
         if not encryption_key:
-            logger.error(
-                "Отсутствует ключ шифрования данных. <handler_go_to_new_trip>"
-            )
+            logger.error("Отсутствует ключ шифрования данных. <handler_go_to_new_trip>")
             return
 
         decrypted_finish_coords = sup.decrypt_data(order.finish_coords, encryption_key)
@@ -2323,7 +2338,9 @@ async def handler_go_to_new_trip(callback: CallbackQuery, state: FSMContext):
                 f"💰Стоимость: {order.price}\n"
                 "#############"
             ),
-            reply_markup=await kb.create_in_trip_keyboard(rate_id, decrypted_finish_coords),
+            reply_markup=await kb.create_in_trip_keyboard(
+                rate_id, decrypted_finish_coords
+            ),
         )
         await rq.set_message(driver_tg_id, msg.message_id, msg.text)
 
@@ -4027,7 +4044,7 @@ async def trip_info(user_id: int, message: Message, state: FSMContext):
             )
             await rq.set_message(user_id, msg.message_id, msg.text)
             return
-        
+
         start_coords = data.get("start_coords")
         end_coords = data.get("end_coords")
         result = await sup.send_route(start_coords, end_coords)
@@ -4144,14 +4161,12 @@ async def confirmation_order(message: Message, state: FSMContext):
             )
             await state.clear()
             return
-        
+
         encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
         if not encryption_key:
-            logger.error(
-                "Отсутствует ключ шифрования данных. <confirmation_order>"
-            )
+            logger.error("Отсутствует ключ шифрования данных. <confirmation_order>")
             return
-        
+
         encrypted_address = sup.encrypt_data(address, encryption_key)
         encrypted_start_coords = sup.encrypt_data(start_coords, encryption_key)
 
@@ -4306,9 +4321,7 @@ async def job_remover(order_id: int):
     try:
         scheduler_manager.remove_job(str(order_id))
     except JobLookupError as e:
-        logger.error(
-            f"Задание с ID {str(order_id)} не найдено: {e} <job_remover>"
-        )
+        logger.error(f"Задание с ID {str(order_id)} не найдено: {e} <job_remover>")
 
 
 @handlers_router.callback_query(F.data.startswith("cancel_order_"))
@@ -4347,7 +4360,7 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
             )
             await state.clear()
             return
-        
+
         client_id = await rq.get_client_by_order(order_id)
         if client_id is None:
             logger.error(
@@ -4363,7 +4376,7 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
             )
             await state.clear()
             return
-        
+
         rate_id = await rq.check_rate(user_id, order_id)
         order_info = await sup.get_order_info(rate_id, order)
         if order_info is None:
@@ -4380,7 +4393,7 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                 )
                 await state.clear()
                 return
-            
+
             await job_remover(order_id)
 
             msg_id = await rq.get_message_id_by_text(order_info)
@@ -4470,7 +4483,9 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                     text=um.reject_driver_text(order_id),
                     reply_markup=kb.group_button,
                 )
-                await rq.set_message(current_order.driver_tg_id, msg.message_id, msg.text)
+                await rq.set_message(
+                    current_order.driver_tg_id, msg.message_id, msg.text
+                )
 
                 await rq.set_status_driver(current_order.driver_tg_id, 1)
                 await rq.delete_current_order(current_order.order_id)
@@ -4487,12 +4502,14 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                 await sup.delete_messages_from_chat(
                     current_order.client_tg_id, callback.message
                 )
-                
+
                 msg = await callback.bot.send_message(
                     chat_id=current_order.client_tg_id,
                     text=um.reject_client_text(order_id),
                 )
-                await rq.set_message(current_order.client_tg_id, msg.message_id, msg.text)
+                await rq.set_message(
+                    current_order.client_tg_id, msg.message_id, msg.text
+                )
 
                 await rq.set_status_driver(current_order.driver_tg_id, 1)
                 await rq.delete_current_order(current_order.order_id)
@@ -4552,7 +4569,9 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                     text=um.reject_driver_text_preorder(order_id),
                     reply_markup=kb.group_button,
                 )
-                await rq.set_message(current_order.driver_tg_id, msg.message_id, msg.text)
+                await rq.set_message(
+                    current_order.driver_tg_id, msg.message_id, msg.text
+                )
 
                 msg = await callback.message.answer(
                     um.reject_client_comment_text(order_id),
@@ -4578,7 +4597,9 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                     chat_id=current_order.client_tg_id,
                     text=um.reject_client_text_preorder(order_id),
                 )
-                await rq.set_message(current_order.client_tg_id, msg.message_id, msg.text)
+                await rq.set_message(
+                    current_order.client_tg_id, msg.message_id, msg.text
+                )
 
                 msg = await callback.message.bot.send_message(
                     chat_id=group_chat_id,
@@ -4590,7 +4611,8 @@ async def origin_client_cancel_order(callback: CallbackQuery, state: FSMContext)
                 scheduler_manager.add_job(
                     sup.scheduled_delete_message_in_group,
                     "date",
-                    run_date=datetime.now(pytz.timezone("Etc/GMT-7")) + timedelta(minutes=30),
+                    run_date=datetime.now(pytz.timezone("Etc/GMT-7"))
+                    + timedelta(minutes=30),
                     misfire_grace_time=60,
                     args=[
                         order.id,
@@ -4762,7 +4784,8 @@ async def origin_driver_reject(message: Message, state: FSMContext):
         )
 
         msg = await message.answer(
-            text="🚫Заказ отменен!\nМожете перейти группу для поиска нового заказа.", reply_markup=kb.group_button,
+            text="🚫Заказ отменен!\nМожете перейти группу для поиска нового заказа.",
+            reply_markup=kb.group_button,
         )
         await rq.set_message(user_id, msg.message_id, msg.text)
     except Exception as e:
@@ -4854,7 +4877,7 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                 f"Не удалось получить текущий заказ по ID {order_id} для пользователя {user_id} <handler_to_order>"
             )
             return
-        
+
         driver_info = await rq.get_driver_info(current_order.driver_id, True)
         if role_id is None:
             logger.error(
@@ -4881,26 +4904,32 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                     )
                     return
 
-                decrypted_start_coords = sup.decrypt_data(order.start_coords, encryption_key)
+                decrypted_start_coords = sup.decrypt_data(
+                    order.start_coords, encryption_key
+                )
 
                 msg = await callback.message.answer(
                     text=order_info,
-                    reply_markup=await kb.create_consider_button(decrypted_start_coords),
+                    reply_markup=await kb.create_consider_button(
+                        decrypted_start_coords
+                    ),
                 )
                 await rq.set_message(user_id, msg.message_id, msg.text)
             return
         elif order.status_id == 14:
-            photo_response = await sup.send_driver_photos(callback.message, user_id, driver_info)
+            photo_response = await sup.send_driver_photos(
+                callback.message, user_id, driver_info
+            )
             if photo_response:
                 await sup.send_message(callback.message, user_id, photo_response)
                 return
-            
+
             msg = await callback.message.answer(
                 f'✅Ваш предзаказ №{order.id} сформирован!\nОжидайте уведомления.\n\nДля отмены заказа можете перейти в "Ваши текущие заказы"',
             )
             await rq.set_message(user_id, msg.message_id, msg.text)
             return
-        
+
         if current_order is None:
             logger.error(
                 f"Не удалось получить текущий заказ по ID {order_id} для пользователя {user_id} <handler_to_order>"
@@ -4999,13 +5028,17 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                     )
                     return
 
-                photo_response = await sup.send_driver_photos(callback.message, user_id, driver_info)
+                photo_response = await sup.send_driver_photos(
+                    callback.message, user_id, driver_info
+                )
                 if photo_response:
                     await sup.send_message(callback.message, user_id, photo_response)
                     return
 
                 msg = await callback.message.answer(
-                    text=um.client_accept_text_for_client(formatted_time, order_info_for_client),
+                    text=um.client_accept_text_for_client(
+                        formatted_time, order_info_for_client
+                    ),
                     reply_markup=kb.keyboard_remove,
                 )
                 await rq.set_message(user_id, msg.message_id, msg.text)
@@ -5031,11 +5064,13 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                     )
                     return
 
-                photo_response = await sup.send_driver_photos(callback.message, user_id, driver_info)
+                photo_response = await sup.send_driver_photos(
+                    callback.message, user_id, driver_info
+                )
                 if photo_response:
                     await sup.send_message(callback.message, user_id, photo_response)
                     return
-                
+
                 if rate_id == 1:
                     msg = await callback.message.answer(
                         um.start_info_text_for_client(
@@ -5067,7 +5102,9 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                     )
                     return
 
-                decrypted_finish_coords = sup.decrypt_data(order.finish_coords, encryption_key)
+                decrypted_finish_coords = sup.decrypt_data(
+                    order.finish_coords, encryption_key
+                )
 
                 msg = await callback.message.answer(
                     text=um.start_info_text_for_driver(
@@ -5102,11 +5139,13 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                     )
                     return
 
-                photo_response = await sup.send_driver_photos(callback.message, user_id, driver_info)
+                photo_response = await sup.send_driver_photos(
+                    callback.message, user_id, driver_info
+                )
                 if photo_response:
                     await sup.send_message(callback.message, user_id, photo_response)
                     return
-                
+
                 order_info_for_client = await sup.get_order_info_for_client_with_driver(
                     rate_id,
                     order.submission_time,
@@ -5124,7 +5163,7 @@ async def handler_to_order(callback: CallbackQuery, state: FSMContext):
                         f"Не удалось получить информацию о заказе для тарифа {rate_id} и заказа {order_id} <handler_to_order>"
                     )
                     return
-                
+
                 msg = await callback.message.answer(
                     um.in_place_text_for_client(order_info_for_client),
                 )

@@ -138,8 +138,14 @@ def help_text(role_id: int):
 
     return text
 
+
+def reg_message_text():
+    return "Для пользования сервисом вам необходимо зарегистрироваться!"
+
+
 def button_change_location_point_text():
     return "Изменить начальное местоположение📍"
+
 
 def no_active_orders_text():
     return "🚫Активных текущих заказов нет."
@@ -417,7 +423,7 @@ def driver_line_status(status_id: int) -> str:
     status_message = "на линии🟢" if status_id == 1 else "не на линии🔴"
     action_message = (
         '⚡️Для начала работы нажмите "Выйти на линии"'
-        if status_id == 1
+        if status_id == 2
         else "Ожидайте заказ в группе"
     )
 

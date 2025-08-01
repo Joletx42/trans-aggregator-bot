@@ -7,6 +7,8 @@ import aiofiles
 import asyncio
 import logging
 import pytz
+from PyPDF2 import PdfReader
+import hashlib
 
 from typing import Tuple, Union
 from scipy.stats import norm
@@ -214,15 +216,27 @@ async def origin_check_user(user_id: int, message: Message, state: FSMContext):
         user_role = await rq.check_role(user_id)
 
         if not user_exists:
-            msg = await message.answer(
-                "Для пользования сервисом вам необходимо зарегистрироваться!\n\n*Продолжая разговор, Вы даете согласие на обработку персональных данных."
-            )
-            await rq.set_message(user_id, msg.message_id, msg.text)
+            if not await rq.check_sign_privacy_policy(user_id):
+                privacy_url = sup.escape_markdown(os.getenv("PRIVACY_POLICY_URL"))
 
-            msg = await message.answer("Выберите пункт:", reply_markup=kb.role_button)
-            await rq.set_message(user_id, msg.message_id, msg.text)
+                msg = await message.answer(
+                    f'Чтобы бы могли продолжить, пожалуйста, ознакомтесь с [Политикой конфиденциальности]({privacy_url}) и [Согласем на обработку персональных данных]({privacy_url})\\.\n\n'
+                    'Нажмите на \\"✅Подписать\\", чтобы продолжить регистрацию на сервисе\\.',
+                    parse_mode="MarkdownV2", 
+                    reply_markup=kb.sign_contract_button,
+                )
+                await rq.set_message(user_id, msg.message_id, msg.text)
+            else:
+                msg = await message.answer(
+                    um.reg_message_text()
+                )
+                await rq.set_message(user_id, msg.message_id, msg.text)
 
-            await state.set_state(st.Reg.role)
+                msg = await message.answer("Выберите пункт:", reply_markup=kb.role_button)
+                await rq.set_message(user_id, msg.message_id, msg.text)
+
+                await state.set_state(st.Reg.role)
+
             return
 
         # Если пользователь существует и его роль == 6
@@ -552,14 +566,12 @@ async def get_order_info_p_to_p(order_id: int) -> str:
     order, client_name = await rq.get_order_by_id_with_client(order_id)
     encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
     if not encryption_key:
-        logger.error(
-            "Отсутствует ключ шифрования данных. <get_order_info_p_to_p>"
-        )
+        logger.error("Отсутствует ключ шифрования данных. <get_order_info_p_to_p>")
         return None
 
     decrypted_start = sup.decrypt_data(order.start, encryption_key)
     decrypted_finish = sup.decrypt_data(order.finish, encryption_key)
-    
+
     text = f"Заказ №{order_id}\n\n🕑Дата и время поездки: {order.submission_time}\n👤Заказчик: {client_name}\n\n📍Откуда: {decrypted_start}\n📍Куда: {decrypted_finish}\n📍Расстояние: {order.distance}\n🕑Общее время поездки: ~ {order.trip_time}\n💰Цена: {order.price}\n\n📝Комментарий: {order.comment}"
     return text
 
@@ -568,9 +580,7 @@ async def get_order_info_to_drive(order_id: int) -> str:
     order, client_name = await rq.get_order_by_id_with_client(order_id)
     encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
     if not encryption_key:
-        logger.error(
-            "Отсутствует ключ шифрования данных. <get_order_info_to_drive>"
-        )
+        logger.error("Отсутствует ключ шифрования данных. <get_order_info_to_drive>")
         return None
 
     decrypted_start = sup.decrypt_data(order.start, encryption_key)
@@ -1089,8 +1099,8 @@ def is_valid_submission_time(submission_time: str) -> bool:
 
 def escape_markdown(text: str) -> str:
     # Экранируем специальные символы Markdown
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
 
 
 async def extract_order_number(order_info: str) -> int:
@@ -1332,17 +1342,15 @@ async def get_order_info(rate_id: int, order) -> str:
 
     encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
     if not encryption_key:
-        logger.error(
-            "Отсутствует ключ шифрования данных. <get_order_info>"
-        )
+        logger.error("Отсутствует ключ шифрования данных. <get_order_info>")
         return None
 
     # Дешифруем сохраненные данные
     decrypted_start = sup.decrypt_data(order.start, encryption_key)
-    decrypted_finish = sup.decrypt_data(order.finish, encryption_key)
 
     try:
         if handler == send_order_message:
+            decrypted_finish = sup.decrypt_data(order.finish, encryption_key)
             order_info = await handler(
                 order.id,
                 order.submission_time,
@@ -1510,7 +1518,7 @@ async def get_order_info_for_client_with_driver(
         "на рассмотрении у клиента",
         "предзаказ принят",
         "заказ принят",
-        "водитель на месте"
+        "водитель на месте",
     }
 
     if order_status in valid_order_statuses:
@@ -1535,7 +1543,7 @@ async def get_order_info_for_client_with_driver(
                     f"Информация о водителе не найдена для водителя {driver_id} и заказа {order_id} <get_order_info_for_client_with_driver>"
                 )
                 return None
-            
+
             encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
             if not encryption_key:
                 logger.error(
@@ -1547,7 +1555,7 @@ async def get_order_info_for_client_with_driver(
 
             if rate_id in [1, 4]:
                 decrypted_finish = sup.decrypt_data(order_finish, encryption_key)
-                
+
                 if rate_id == 1:
                     return await send_order_message_for_client_with_driver(
                         driver_info["text"],
@@ -1673,7 +1681,7 @@ async def get_order_info_for_driver(
                     f"Информация о клиенте не найдена для клиента {client_id} и заказа {order_id} <get_order_info_for_driver>"
                 )
                 return None
-            
+
             encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
             if not encryption_key:
                 logger.error(
@@ -1807,12 +1815,10 @@ async def get_order_history(
                 f"Дата не найдена для order_history_id {order_history_id} и order_id {order_id} <get_order_history>"
             )
             return None
-        
+
         encryption_key = os.getenv("DATA_ENCRYPTION_KEY")
         if not encryption_key:
-            logger.error(
-                "Отсутствует ключ шифрования данных. <get_order_history>"
-            )
+            logger.error("Отсутствует ключ шифрования данных. <get_order_history>")
             return None
 
         decrypted_start = sup.decrypt_data(order_start, encryption_key)
@@ -1820,7 +1826,7 @@ async def get_order_history(
         # В зависимости от rate_id вызываем соответствующую функцию
         if rate_id in [1, 4]:
             decrypted_finish = sup.decrypt_data(order_finish, encryption_key)
-        
+
             return await order_history(
                 client_info,
                 driver_info,
@@ -2180,7 +2186,7 @@ async def save_image_as_encrypted(image_data: bytes, user_id: int) -> str | None
                 "Отсутствует путь к папке (ENCRYPTED_IMAGE_DIR) <save_image_as_encrypted>"
             )
             return None
-        
+
         # Создаём папку, если её нет
         os.makedirs(encrypted_image_dir, exist_ok=True)
 
@@ -2198,8 +2204,32 @@ async def save_image_as_encrypted(image_data: bytes, user_id: int) -> str | None
         )
         return None
 
+
 def generate_unique_key():
     return str(uuid.uuid4())
+
+
+def hash_doc():
+    try:
+        # Читаем PDF-файл
+        base_dir = os.getcwd()
+        file_path = os.path.join(base_dir, "privacy_policy", "privacy_policy.pdf")
+
+        reader = PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        
+        if not text:
+            logger.warning("PDF-файл пуст или не удалось извлечь текст.")
+            return None
+        
+        doc_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        return doc_hash
+
+    except Exception as e:
+        logger.error(f"Ошибка при хешировании файла: {e} <hash_doc>")
+        return None
 
 
 def encrypt_data(data, key):

@@ -271,7 +271,7 @@ class Used_Referral_Link(Base):
 
 
 class Privacy_Policy_Signature(Base):
-    __tablename__ = "privacy_policy_Signaturies"
+    __tablename__ = "privacy_policy_sign"
 
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, server_default=Identity()
@@ -280,7 +280,9 @@ class Privacy_Policy_Signature(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE")
     )
     signed_at: Mapped[str] = mapped_column(Text)
-
+    document_version: Mapped[str] = mapped_column(Text)
+    document_hash: Mapped[str] = mapped_column(Text)
+    
 
 async def fill_initial_data(async_session_maker: sessionmaker):
     async with async_session_maker() as session:

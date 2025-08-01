@@ -5,7 +5,7 @@ import os
 from cryptography.fernet import Fernet
 
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram import Router
 from aiogram.fsm.context import FSMContext
 
@@ -443,8 +443,7 @@ async def cmd_generate_key(message: Message, state: FSMContext):
     """
     Обрабатывает команду /generate_key.
 
-    Удаляет сообщение пользователя и отображает секретный ключ (только для role_id == 3).
-    Удаляет сообщение с ключом через 10 секунд.
+    Генерирует новый ключ и удаляет сообщение с ключом через 10 секунд.
     Логирует ошибки и отправляет сообщение об ошибке пользователю при необходимости.
     """
     user_id = message.from_user.id
@@ -790,4 +789,85 @@ async def cmd_get_all_drivers(message: Message, state: FSMContext):
         logger.exception(
             f"Ошибка для Админа {user_id}: {e} <cmd_get_all_drivers>"
         )  # Логирование ошибки с трассировкой
+        await e_sup.send_message(message, user_id, e_um.common_error_message())
+
+@command_router.message(Command("get_doc_hash"))
+async def cmd_get_doc_hash(message: Message, state: FSMContext):
+    """
+    Обрабатывает команду /get_doc_hash.
+    """
+    user_id = message.from_user.id
+    user_exists = await sup.origin_check_user(user_id, message, state)
+    if not user_exists:
+        return
+
+    try:
+        await e_rq.set_message(user_id, message.message_id, message.text)
+
+        role_id = await e_rq.check_role(user_id)
+        if role_id in [3, 4, 5]:
+            hash_doc = e_sup.hash_doc()
+            msg = await message.answer(hash_doc)
+            logger.info(
+                f"Хеш отправлен Админу {user_id} <get_doc_hash>"
+            )
+
+            await asyncio.sleep(10)
+            try:
+                await message.bot.delete_message(
+                    chat_id=user_id, message_id=msg.message_id
+                )
+                logger.info(
+                    f"Сообщение с хешем {msg.message_id} удалено для пользователя {user_id} <get_doc_hash>"
+                )
+            except Exception as delete_error:
+                logger.warning(
+                    f"Не удалось удалить сообщение {msg.message_id} для пользователя {user_id}: {delete_error} <get_doc_hash>"
+                )
+        else:
+            msg = await message.answer("Недостаточно прав для этого.")
+            await e_rq.set_message(user_id, msg.message_id, msg.text)
+            logger.info(
+                f"Сообщение о недостаточных правах отправлено пользователю {user_id} <get_doc_hash>"
+            )
+    except Exception as e:
+        logger.exception(f"Ошибка для пользователя {user_id}: {e} <get_doc_hash>")
+        await e_sup.send_message(message, user_id, e_um.common_error_message())
+
+
+@command_router.message(Command("get_doc_pp"))
+async def cmd_get_doc_pp(message: Message, state: FSMContext):
+    """
+    Обрабатывает команду /get_doc_pp.
+
+    Отправляет документ "Согласие на предоставление ПД".
+    """
+    user_id = message.from_user.id
+    user_exists = await sup.origin_check_user(user_id, message, state)
+    if not user_exists:
+        return
+
+    try:
+        await e_rq.set_message(user_id, message.message_id, message.text)
+
+        role_id = await e_rq.check_role(user_id)
+        if role_id in [3, 4, 5]:
+            base_dir = os.getcwd()
+            file_path = os.path.join(base_dir, "privacy_policy", "privacy_policy.pdf")
+
+            document = FSInputFile(file_path)
+            msg = await message.bot.send_document(chat_id=user_id, document=document)
+
+            await e_rq.set_message(user_id, msg.message_id, "privacy_policy.pdf")
+            logger.info(
+                f"Согласие на обработку ПД отправлено Админу {user_id} <cmd_get_doc_pp>"
+            )
+        else:
+            msg = await message.answer("Недостаточно прав для этого.")
+            await e_rq.set_message(user_id, msg.message_id, msg.text)
+            logger.info(
+                f"Сообщение о недостаточных правах отправлено пользователю {user_id} <cmd_get_doc_pp>"
+            )
+    except Exception as e:
+        logger.exception(f"Ошибка для пользователя {user_id}: {e} <cmd_get_doc_pp>")
         await e_sup.send_message(message, user_id, e_um.common_error_message())

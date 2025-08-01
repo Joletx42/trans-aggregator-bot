@@ -2,13 +2,10 @@ import os
 import asyncio
 import logging
 
-from cryptography.fernet import Fernet
-
 from aiogram import Router
-from aiogram.types import (
-    Message,
-)
+from aiogram.types import Message, CallbackQuery
 
+from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 
 import app.states as st
@@ -21,10 +18,56 @@ register_router = Router()
 logger = logging.getLogger(__name__)
 
 
+@register_router.callback_query(F.data == "accept_policy")
+async def accept_sign_contract(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик подписи соглашения.
+    """
+    user_id = callback.from_user.id
+    try:
+        await sup.delete_messages_from_chat(user_id, callback.message)
+
+        msg = await callback.message.answer(
+            um.reg_message_text()
+        )
+        await rq.set_message(user_id, msg.message_id, msg.text)
+
+        msg = await callback.message.answer("Выберите пункт:", reply_markup=kb.role_button)
+        await rq.set_message(user_id, msg.message_id, msg.text)
+
+        await state.set_state(st.Reg.role)
+    except Exception as e:
+        await state.clear()
+        logger.error(f"Ошибка для пользователя {user_id}: {e} <accept_sign_contract>")
+        await callback.answer(um.common_error_message())
+
+
+@register_router.callback_query(F.data == "reject_policy")
+async def reject_sign_contract(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик отказа от подписи соглашения.
+    """
+    user_id = callback.from_user.id
+    try:
+        await sup.delete_messages_from_chat(user_id, callback.message)
+
+        await callback.message.answer(
+            text=(
+                "Спасибо, что уделили время знакомству с Политикой конфиденциальности!\n"
+                "Без этого согласия дальнейшее использование бота, к сожалению, невозможно.\n\n"
+                "Если вы передумаете, повторите запуск команды /start.\n"
+                "Если у вас возникнут вопросы или вы захотите продолжить — мы всегда готовы помочь!"
+            )
+        )
+    except Exception as e:
+        await state.clear()
+        logger.error(f"Ошибка для пользователя {user_id}: {e} <reject_sign_contract>")
+
+
 @register_router.message(st.Reg.role)
 async def set_role(message: Message, state: FSMContext):
     """
-    Обработчик выбора роли пользователя (Elite или обычный).
+    Обработчик выбора роли пользователя.
     """
     user_id = message.from_user.id
     try:
@@ -234,6 +277,10 @@ async def set_contact_and_get_region(message: Message, state: FSMContext):
                         user_role,
                         1,
                         5.0,
+                    )
+
+                    await rq.set_privacy_policy_sign(
+                        message.from_user.id,
                     )
 
                     await sup.delete_messages_from_chat(user_id, message)
@@ -502,6 +549,10 @@ async def set_photo_driver(message: Message, state: FSMContext):
             5.0,
             photo_driver,
             photo_car,
+        )
+
+        await rq.set_privacy_policy_sign(
+            message.from_user.id,
         )
 
         await sup.delete_messages_from_chat(user_id, message)

@@ -39,6 +39,25 @@ async def cmd_start(message: Message, state: FSMContext):
         await sup.send_message(message, user_id, um.common_error_message())
 
 
+@command_router.message(Command('chatid'))
+async def cmd_chat_id(message: Message, state: FSMContext):
+    """
+    Обработчик команды /chatid.
+
+    Отрпавляет в чат chat_id этого чата.
+    """
+    user_id = message.from_user.id
+    if not await sup.origin_check_user(user_id, message, state):
+        return
+    try:
+        await message.reply(f"Chat ID этого чата: {message.chat.id}")
+    except Exception as e:
+        logger.exception(
+            f"Ошибка для пользователя {user_id}: {e} <cmd_chat_id>"
+        )  # Логирование ошибки
+        await sup.send_message(message, user_id, um.common_error_message())
+
+
 @command_router.message(Command("orders"))
 async def cmd_orders(message: Message, state: FSMContext):
     """
@@ -96,7 +115,7 @@ async def cmd_current_orders(message: Message, state: FSMContext):
 
         if isinstance(response, str):  # Если произошла ошибка
             msg = await message.answer(response, show_alert=True)
-            await rq.set_message(user_id, msg.message_id, msg.text)
+            await rq.set_message(user_id, msg.message_id, "текущий заказ")
         else:
             data = await state.get_data()
             task = data.get("task")

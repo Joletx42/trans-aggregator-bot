@@ -40,6 +40,8 @@ async def handler_user_state(user_id: int, message: Message, state: FSMContext):
                     "/block_user - Заблокировать пользователя\n\n"
                     "/set_promo_code - Создать промокод\n"
                     "/get_promo_code - Получить текущие промокоды\n\n"
+                    '/get_doc_hash - Получить хеш документа "Согласие на обработку ПД"\n'
+                    '/get_doc_pp - Скачать документ "Согласие на обработку ПД"\n'
                     "/generate_key - Сгенерировать секретный ключ\n"
                     "/send_message - Рассылка сообщения пользователям\n\n"
                     "/set_new_admin - Назначить оператора/администратора\n"
@@ -67,6 +69,8 @@ async def handler_user_state(user_id: int, message: Message, state: FSMContext):
                     "/set_promo_code - Создать промокод\n"
                     "/get_promo_code - Получить текущие промокоды\n"
                     "/delete_promo_code - Удалить промокод\n\n"
+                    '/get_doc_hash - Получить хеш документа "Согласие на обработку ПД"\n'
+                    '/get_doc_pp - Скачать документ "Согласие на обработку ПД"\n\n'
                     "/generate_key - Сгенерировать секретный ключ\n\n"
                     "/set_new_admin - Назначить оператора/администратора\n"
                     "/set_new_driver_admin - Назначить водителя/администратора\n\n"
@@ -237,3 +241,5 @@ async def get_document(adm_id: int, message: Message, file_path: str):
             f"Ошибка в функции get_document для Админа {adm_id}: {e}",
         )
         await e_sup.send_message(message, adm_id, e_um.common_error_message())
+
+
