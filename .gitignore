@@ -1,0 +1,12 @@
+.venv
+__pycache__
+.env
+temp.py
+temp.txt
+temp.sql
+locate.py
+enc_photo_drivers
+dec_photo_drivers
+bot.log
+.log
+dump.tar.gz
